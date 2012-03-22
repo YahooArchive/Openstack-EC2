@@ -8,6 +8,7 @@ from mock import wsgi
 
 LOG = logging.getLogger('mock.api.service')
 
+
 class Mock(wsgi.Application):
 
     def __init__(self, config):
