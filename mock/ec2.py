@@ -240,7 +240,7 @@ class Ec2Mock(object):
         self.active_ip = [10, 0, 0, 1]
         self.rollover_ip = list(self.active_ip)
         self.instance_id = 0
-        self.request_id = 0
+        self.request_id = -1
         self.instances = dict()
         self.images = dict()
         self.images['ami_1234567890'] = {
@@ -365,7 +365,6 @@ class Ec2Mock(object):
                            'MESSAGE': message,
                            'REQUEST_ID': str(self.request_id)
                         })
-        self.request_id += 1
         return data
         
     def _do_mock(self, req):
@@ -389,11 +388,11 @@ class Ec2Mock(object):
         else:
             body = self._error_response('NoAction', 'No action!')
 
-        self.request_id += 1
         return body
 
     def __call__(self, req):
         resp = webob.Response()
+        self.request_id += 1
         resp.unicode_body = self._do_mock(req)
         resp.content_type = 'text/xml'
         return resp
