@@ -8,13 +8,6 @@ DEF_LOGGING_FMT = '%(levelname)s: @%(name)s : %(message)s'
 DEF_LOGGING_DATE_FMT = None  # Apparently it should revert to ISO8601 format
 
 
-def random_ip4():
-    full = ["10"]
-    for i in range(3):
-        full.append(str(random.randint(0, 254)))
-    return ".".join(full)
-
-
 def setup_logging(verbosity):
     root_logger = logging.root
     if verbosity > 2:

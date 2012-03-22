@@ -393,6 +393,7 @@ class Ec2Mock(object):
     def __call__(self, req):
         resp = webob.Response()
         self.request_id += 1
-        resp.unicode_body = self._do_mock(req)
+        body = self._do_mock(req)
+        resp.unicode_body = body.strip()
         resp.content_type = 'text/xml'
         return resp
