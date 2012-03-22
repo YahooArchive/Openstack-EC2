@@ -1,21 +1,19 @@
-import logging
 import os
 import time
 import urllib2
 import webob
 import webob.dec
 
-from proxy import config
-from proxy.common import wsgi
+from mock import log as logging
+from mock import wsgi
 
-CONF = config.CONF
 
 IP_FORMAT='10.0.0.%d'
-
 INSTANCE_FORMAT = 'i_000%d'
+LOG = logging.getLogger('mock.ec2')
 
 
-class Ec2Mock(wsgi.Application):
+class Ec2Mock(object):
 
     REQUEST_ID = 0
     IP_NUMBER = 1
@@ -246,8 +244,8 @@ class Ec2Mock(wsgi.Application):
 </TerminateInstancesResponse>
 '''
     
-    def __init__(self):
-        wsgi.Application.__init__(self)
+    def __init__(self, config):
+        self.cfg = config
 
     def _fill_in_template(self, template, values):
         data = template
@@ -354,7 +352,6 @@ class Ec2Mock(wsgi.Application):
         Ec2Mock.REQUEST_ID += 1
         return data    
 
-    @webob.dec.wsgify(RequestClass=webob.Request)
     def __call__(self, req):
         resp = webob.Response()
         resp.status = 200
@@ -365,7 +362,7 @@ class Ec2Mock(wsgi.Application):
             return resp
 
         action = req.params.getall('Action')
-        logging.debug('handling a %s request.' % action)
+        LOG.debug('handling a %s request.' % action)
 
         if not action:
             resp.text = self._error_response('NoAction', 'No action!')
