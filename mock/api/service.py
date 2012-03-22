@@ -16,4 +16,6 @@ class Mock(wsgi.Application):
 
     @webob.dec.wsgify(RequestClass=webob.Request)
     def __call__(self, req):
-        raise webob.exc.HTTPBadRequest(comment="Not implemented yet")
+        resp = self.ec2_mock(req)
+        LOG.debug("Created mock response %s", resp)
+        return resp

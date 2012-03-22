@@ -1,32 +1,23 @@
 import os
+import sqlite3
 import time
 import urllib2
+
 import webob
 import webob.dec
+import webob.exc
+
+import xml.sax.saxutils as xmlutils
 
 from mock import log as logging
 from mock import wsgi
+from mock import utils
 
-
-IP_FORMAT='10.0.0.%d'
-INSTANCE_FORMAT = 'i_000%d'
+INSTANCE_FORMAT = 'instance-%08x'
 LOG = logging.getLogger('mock.ec2')
 
 
 class Ec2Mock(object):
-
-    REQUEST_ID = 0
-    IP_NUMBER = 1
-    INSTANCE_NUMBER = 1
-
-    INSTANCES = {}
-
-    IMAGES = {
-        'ami_1234567890': {
-            'name': 'RHEL 6.2',
-            'description': 'Linux_rhel6.2'
-        }
-    }
 
     STATES = {
         '0': 'pending',
@@ -246,99 +237,124 @@ class Ec2Mock(object):
     
     def __init__(self, config):
         self.cfg = config
+        self.active_ip = [10, 0, 0, 1]
+        self.rollover_ip = list(self.active_ip)
+        self.instance_id = 0
+        self.request_id = 0
+        self.instances = dict()
+        self.images = dict()
+        self.images['ami_1234567890'] = {
+            'name': 'RHEL 6.2',
+            'description': 'Linux_rhel6.2'
+        }
 
     def _fill_in_template(self, template, values):
         data = template
 
         # fill in the template values
         for k, v in values.iteritems():
-            data = data.replace("%%%s%%" % k.upper(), v if v else '')
+            v = xmlutils.escape(v)
+            data = data.replace("%%%s%%" % k.upper(), v)
 
         return data
+    
+    def _make_instance_id(self):
+        instance_id = INSTANCE_FORMAT % (self.instance_id)
+        self.instance_id += 1
+        return instance_id
 
     def _run_instances(self, req):
         image_id = req.params.getall('ImageId')
-        if not image_id or image_id[0] not in Ec2Mock.IMAGES:
+        if not image_id or image_id[0] not in self.images:
             return self._error_response('NoImageID', 'No such image id')
 
         image_id = image_id[0]
+        instance_id = self._make_instance_id()
 
-        instance_id = INSTANCE_FORMAT % Ec2Mock.INSTANCE_NUMBER
-        Ec2Mock.INSTANCE_NUMBER += 1
+        self.instances[instance_id] = {}
+        self.instances[instance_id]['code'] = '0'
+        self.instances[instance_id]['ts'] = time.time()
+        self.instances[instance_id]['ip'] = ''
 
-        Ec2Mock.INSTANCES[instance_id] = {}
-        Ec2Mock.INSTANCES[instance_id]['code'] = '0'
-        Ec2Mock.INSTANCES[instance_id]['ts'] = time.time()
-        Ec2Mock.INSTANCES[instance_id]['ip'] = ''
-
-        data = self._fill_in_template(Ec2Mock.RUN_INSTANCES_TEMPLATE,
+        return self._fill_in_template(Ec2Mock.RUN_INSTANCES_TEMPLATE,
                                       {
-                                         'REQUEST_ID': str(Ec2Mock.REQUEST_ID),
+                                         'REQUEST_ID': str(self.request_id),
                                          'INSTANCE_ID': instance_id,
                                          'IMAGE_ID': image_id
                                       })
-        return data
 
     def _terminate_instances(self, req):
-        id = req.params.getall('InstanceId.1')
-        if not id or id[0] not in Ec2Mock.INSTANCES:
+        iid = req.params.getall('InstanceId.1')
+        if not iid or iid[0] not in self.instances:
             return self._error_response('NoInstanceID', 'No instance id')
 
-        id = id[0]
-
+        iid = iid[0]
         data = self._fill_in_template(Ec2Mock.TERMINATE_INSTANCES_TEMPLATE,
                                       {
-                                         'REQUEST_ID': str(Ec2Mock.REQUEST_ID),
-                                         'INSTANCE_ID': id
+                                         'REQUEST_ID': str(self.request_id),
+                                         'INSTANCE_ID': iid
                                       })
-        del Ec2Mock.INSTANCES[id]
+        del self.instances[iid]
         return data
 
     def _describe_images(self, req):
-        id = req.params.getall('ImageId.1')
-        if not id or id[0] not in Ec2Mock.IMAGES:
+        ipam = req.params.getall('ImageId.1')
+        if not ipam or ipam[0] not in self.images:
             return self._error_response('NoImageID', 'No image id')
 
-        id = id[0]
-
+        image_id = ipam[0]
         data = self._fill_in_template(Ec2Mock.DESCRIBE_IMAGES_TEMPLATE,
                                       {
-                                         'REQUEST_ID': str(Ec2Mock.REQUEST_ID),
-                                         'IMAGE_ID': id,
-                                         'NAME': Ec2Mock.IMAGES[id]['name'],
-                                         'DESCRIPTION': Ec2Mock.IMAGES[id]['description']
+                                         'REQUEST_ID': str(self.request_id),
+                                         'IMAGE_ID': image_id,
+                                         'NAME': self.images[image_id]['name'],
+                                         'DESCRIPTION': self.images[image_id]['description']
                                       })
         return data
 
+    def _make_ip(self):
+        new_ip = list(self.active_ip)
+        new_ip.reverse()
+        for i, c in enumerate(new_ip):
+            if i == 3:
+                # Roll over
+                new_ip = list(self.rollover_ip)
+                new_ip.reverse()
+                break
+            new_ip[i] += 1
+            if new_ip[i] <= 255:
+                break
+            else:
+                new_ip[i] = new_ip[i] - 1
+        new_ip.reverse()
+        self.active_ip = list(new_ip)
+        ip_strs = [str(c) for c in new_ip]
+        return ".".join(ip_strs)
 
     def _describe_instances(self, req):
-        id = req.params.getall('InstanceId.1')
-        if not id or id[0] not in Ec2Mock.INSTANCES:
+        iid = req.params.getall('InstanceId.1')
+        if not iid or iid[0] not in self.instances:
             return self._error_response('NoInstanceID', 'No instance id')
 
-        id = id[0]
-
-        code = Ec2Mock.INSTANCES[id]['code']
-        ts = Ec2Mock.INSTANCES[id]['ts']
-        ip = Ec2Mock.INSTANCES[id]['ip']
+        iid = iid[0]
+        code = self.instances[iid]['code']
+        ts = self.instances[iid]['ts']
+        ip = self.instances[iid]['ip']
         now = time.time()
         
         if code == '0' and now > (ts + 20):
-            Ec2Mock.INSTANCES[id]['code'] = code = '16'
-            Ec2Mock.INSTANCES[id]['ip'] = ip = IP_FORMAT % Ec2Mock.IP_NUMBER
-            Ec2Mock.IP_NUMBER = (Ec2Mock.IP_NUMBER + 1) % 256
-        
-        state = Ec2Mock.STATES[code]
+            self.instances[iid]['code'] = code = '16'
+            ip = self._make_ip()
+            self.instances[iid]['ip'] = ip
 
-        data = self._fill_in_template(Ec2Mock.DESCRIBE_INSTANCES_TEMPLATE,
+        return self._fill_in_template(Ec2Mock.DESCRIBE_INSTANCES_TEMPLATE,
                                       {
-                                         'REQUEST_ID': str(Ec2Mock.REQUEST_ID),
-                                         'INSTANCE_ID': id,
+                                         'REQUEST_ID': str(self.request_id),
+                                         'INSTANCE_ID': iid,
                                          'CODE': code,
-                                         'STATE': state,
+                                         'STATE': Ec2Mock.STATES[code],
                                          'IP': ip
                                       })
-        return data
 
     def _check_signature(self, req):
         return True
@@ -347,26 +363,17 @@ class Ec2Mock(object):
         data = self._fill_in_template(Ec2Mock.ERROR_TEMPLATE, {
                            'CODE': code,
                            'MESSAGE': message,
-                           'REQUEST_ID': str(Ec2Mock.REQUEST_ID)
+                           'REQUEST_ID': str(self.request_id)
                         })
-        Ec2Mock.REQUEST_ID += 1
-        return data    
-
-    def __call__(self, req):
-        resp = webob.Response()
-        resp.status = 200
-
-        if not self._check_signature(req):
-            resp.text = self._error_response('SignatureDoesNotMatch',
-                                             'Signature problem')
-            return resp
-
+        self.request_id += 1
+        return data
+        
+    def _do_mock(self, req):
         action = req.params.getall('Action')
-        LOG.debug('handling a %s request.' % action)
+        LOG.debug('Handling a %r request.' % action)
 
-        if not action:
-            resp.text = self._error_response('NoAction', 'No action!')
-            return resp
+        if not action or not action[0]:
+            return self._error_response('NoAction', 'No action!')
         else: 
             action = action[0]
 
@@ -382,6 +389,11 @@ class Ec2Mock(object):
         else:
             body = self._error_response('NoAction', 'No action!')
 
-        Ec2Mock.REQUEST_ID += 1
-        resp.text = body
+        self.request_id += 1
+        return body
+
+    def __call__(self, req):
+        resp = webob.Response()
+        resp.unicode_body = self._do_mock(req)
+        resp.content_type = 'text/xml'
         return resp
