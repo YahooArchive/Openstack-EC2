@@ -31,11 +31,10 @@ import webob
 import webob.dec
 import webob.exc
 
-from proxy import log as logging
-from proxy import config as cfg
-from proxy import decorators
+from mock import log as logging
+from mock import config as cfg
 
-LOG = logging.getLogger('proxy.wsgi')
+LOG = logging.getLogger('mock.wsgi')
 
 
 class WritableLogger(object):
@@ -52,7 +51,6 @@ class WritableLogger(object):
 class Server(object):
     """Server class to manage multiple WSGI sockets and applications."""
 
-    @decorators.log_debug
     def __init__(self, application, port, threads=1000):
         self.application = application
         self.port = port
@@ -84,7 +82,7 @@ class Server(object):
 
     def _run(self, application, socket):
         """Start a WSGI server in a new green thread."""
-        logger = logging.getLogger('proxy.wsgi.server')
+        logger = logging.getLogger('mock.wsgi.server')
         # See: http://eventlet.net/doc/modules/wsgi.html
         eventlet.wsgi.server(socket, application, custom_pool=self.pool,
                              log=WritableLogger(logger))
@@ -97,12 +95,10 @@ class Request(webob.Request):
 class Application(object):
     """Base WSGI application wrapper. Subclasses need to implement __call__."""
 
-    @decorators.log_debug
     def __init__(self, config):
         self.cfg = config
 
     @classmethod
-    @decorators.log_debug
     def factory(cls, global_config, **local_config):
         """Used for paste app factories in paste.deploy config files.
 
@@ -210,7 +206,6 @@ class Middleware(Application):
 
         return _factory
 
-    @decorators.log_debug
     def __init__(self, application, config):
         Application.__init__(self, config)
         self.application = application
