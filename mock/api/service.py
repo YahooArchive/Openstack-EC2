@@ -16,7 +16,4 @@ class Mock(wsgi.Application):
 
     @webob.dec.wsgify(RequestClass=webob.Request)
     def __call__(self, req):
-        out_resp = webob.Response()
-        out_resp.status = httplib.INTERNAL_SERVER_ERROR
-        out_resp.body = "WIP"
-        out_resp.content_type = "text/plain"
+        raise webob.exc.HTTPBadRequest(comment="Not implemented yet")
