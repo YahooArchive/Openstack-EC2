@@ -95,7 +95,7 @@ class Request(webob.Request):
 class Application(object):
     """Base WSGI application wrapper. Subclasses need to implement __call__."""
 
-    def __init__(self, config):
+    def __init__(self, config, paste_conf=None):
         self.cfg = config
 
     @classmethod
