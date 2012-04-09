@@ -10,3 +10,8 @@ To provide a site/app/service that can provide the following:
     can accept/return valid responses and statuses as well as have the ability to create faults
     on demand (ie by a special URI paramter)
  1. Aka a EC2 server (valid for a given EC2 api/wsdl/xsd version) without needing EC2
+1. A framework which can be used by QA to verify the compatability level in an automated fashion 
+   by running a given set of profiles (ie a profile could be a request for an instance followed by
+   a describe instance followed by a terminate instance) against the expected output for a given 
+   profile (where the expected output is created using the mock EC2 server)
+1. Improved openstack EC2 support by continoously increasing the previous compatability level
