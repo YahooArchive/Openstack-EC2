@@ -18,8 +18,5 @@ To provide a site/app/service that can provide the following:
 
 ## Structure
 
-See [https://github.com/yahoo/Openstack-Mock/wiki/Compatibility](https://github.com/yahoo/Openstack-Mock/wiki/Compatibility)
+See: [https://github.com/yahoo/Openstack-Mock/wiki/Compatibility](https://github.com/yahoo/Openstack-Mock/wiki/Compatibility)
 
-### Analysis
-
-* [RunInstances](https://github.com/yahoo/Openstack-Mock/wiki/RunInstances)
