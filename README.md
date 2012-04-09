@@ -15,3 +15,13 @@ To provide a site/app/service that can provide the following:
    a describe instance followed by a terminate instance) against the expected output for a given 
    profile (where the expected output is created using the mock EC2 server)
 1. Improved openstack EC2 support by continuously increasing the previous compatability level
+
+# How to do this:
+
+## General structure
+
+See [https://github.com/yahoo/Openstack-Mock/wiki/Compatibility](https://github.com/yahoo/Openstack-Mock/wiki/Compatibility)
+
+## Analysis
+
+* [RunInstances](https://github.com/yahoo/Openstack-Mock/wiki/RunInstances)
